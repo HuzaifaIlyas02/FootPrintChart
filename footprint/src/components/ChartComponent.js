@@ -42,6 +42,10 @@ function ChartComponent({ footprints, width, height }) {
     });
   }, [footprints]);
 
+
+  // This will help you see the structure of the data and identify any issues.
+  // console.log(footprints);
+
   // 2) Map and sanitize data into the shape expected by react‑financial‑charts.
   //    In addition, filter out outliers using a threshold.
   const rawData = useMemo(() => {
@@ -58,15 +62,31 @@ function ChartComponent({ footprints, width, height }) {
   // Adjust the thresholds (e.g., high below 10000 and low above 0) as needed.
   const data = useMemo(() => {
     const filtered = rawData.filter((d) => {
-      if (
-        isNaN(d.open) || isNaN(d.high) ||
-        isNaN(d.low) || isNaN(d.close)
-      ) {
+      if (isNaN(d.open) || isNaN(d.high) || isNaN(d.low) || isNaN(d.close)) {
+        console.log("Dropping row due to NaN:", d);
         return false;
       }
+      
+
+      // Check for weird date
+      if (d.date.getFullYear() < 2000 || d.date.getFullYear() > 2050) {
+        console.log("Dropping row due to suspicious date:", d);
+        return false;
+      }
+
       // For example, reject values that are too high or too low.
-      if (d.high > 10000 || d.low < 0) {
-        console.warn("Filtered out outlier data point:", d);
+      // Check for out-of-range prices
+      if (
+        d.open <= 0 ||
+        d.open > 100000 ||
+        d.high <= 0 ||
+        d.high > 100000 ||
+        d.low <= 0 ||
+        d.low > 100000 ||
+        d.close <= 0 ||
+        d.close > 100000
+      ) {
+        console.log("Dropping row due to out-of-range price:", d);
         return false;
       }
       return true;
@@ -86,7 +106,7 @@ function ChartComponent({ footprints, width, height }) {
   } = xScaleProvider(data);
 
   // 3) Calculate the last index (the current candle) & center it
-  const lastIndex = xAccessor( last(chartData));
+  const lastIndex = xAccessor(last(chartData));
   // const halfVisible = visibleCandleCount / 2;
   const visibleCandles = Math.min(15, chartData.length);
   // const xExtents = [lastIndex - halfVisible, lastIndex + halfVisible];
@@ -166,7 +186,7 @@ function ChartComponent({ footprints, width, height }) {
         mouseMoveEvent={true}
       >
         <Chart id={1} yExtents={yExtentsFunction}>
-          <XAxis tickLabelFill="#555"/>
+          <XAxis tickLabelFill="#555" />
           <YAxis tickLabelFill="#555" />
           <MouseCoordinateX displayFormat={timeFormat("%H:%M")} />
           <MouseCoordinateY displayFormat={format(".2f")} />
@@ -180,14 +200,14 @@ function ChartComponent({ footprints, width, height }) {
             fontWeight={20}
             textFill="blue"
           />
-            <ZoomButtons
-          onReset={() => {
-            if (chartRef.current && chartRef.current.resetYDomain) {
-              chartRef.current.resetYDomain();
-              chartRef.current.resetXDomain();
-            }
-          }}
-        />
+          <ZoomButtons
+            onReset={() => {
+              if (chartRef.current && chartRef.current.resetYDomain) {
+                chartRef.current.resetYDomain();
+                chartRef.current.resetXDomain();
+              }
+            }}
+          />
         </Chart>
       </ChartCanvas>
     </div>
@@ -195,6 +215,4 @@ function ChartComponent({ footprints, width, height }) {
 }
 
 // Make the chart fill the entire viewport
-export default withSize()(
-  ChartComponent
-);
+export default withSize()(ChartComponent);

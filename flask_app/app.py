@@ -51,9 +51,35 @@ CSV_FIELDS = [
 ]
 
 # ----------------------------
+# Load Existing CSV Data (if any)
+# ----------------------------
+def load_existing_data():
+    """
+    Check each CSV file only once at startup. If the CSV file for a timeframe is not empty,
+    load its content into finalized_data so that new data will be appended starting from the last line.
+    """
+    for tf in TIMEFRAMES:
+        filename = os.path.join(DATA_DIR, f"footprint_{tf}.csv")
+        if os.path.exists(filename) and os.path.getsize(filename) > 0:
+            with open(filename, "r") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    # Convert JSON string fields back to their native Python types.
+                    for key in ["pocs", "price_levels", "imbalances"]:
+                        if key in row and row[key]:
+                            try:
+                                row[key] = json.loads(row[key])
+                            except Exception:
+                                # If conversion fails, leave the value as is.
+                                pass
+                    finalized_data[tf].append(row)
+
+# Call the load function once at startup.
+load_existing_data()
+
+# ----------------------------
 # Helper Functions
 # ----------------------------
-
 def timeframe_to_seconds(tf):
     """Convert a timeframe string (e.g. '1m', '3m', '1h') to number of seconds."""
     unit = tf[-1]
@@ -67,6 +93,7 @@ def timeframe_to_seconds(tf):
 
 # ----------------------------
 # CSV Helper – Write CSV file for a given timeframe.
+# (DONOT change the saving functionality)
 # ----------------------------
 def write_csv(tf):
     """Rewrite the CSV file for timeframe tf with finalized data and the current candle (if exists)."""
@@ -95,15 +122,14 @@ def write_csv(tf):
                 summary.get("min_delta", ""),
                 summary.get("CVD", ""),
                 summary.get("buy_sell_ratio", ""),
-                json.dumps(summary.get("pocs", [])),
-                json.dumps(summary.get("price_levels", {})),
-                json.dumps(summary.get("imbalances", []))
+                json.dumps(summary.get("pocs", [])) if not isinstance(summary.get("pocs", []), str) else summary.get("pocs", ""),
+                json.dumps(summary.get("price_levels", {})) if not isinstance(summary.get("price_levels", {}), str) else summary.get("price_levels", ""),
+                json.dumps(summary.get("imbalances", [])) if not isinstance(summary.get("imbalances", []), str) else summary.get("imbalances", "")
             ])
 
 # ----------------------------
 # Footprint Calculation Functions
 # ----------------------------
-
 def process_trade(trade):
     """Process a single trade coming from Binance WS.
        Update the current candle in each timeframe.
@@ -189,7 +215,6 @@ def finalize_candle(tf, bucket):
 
     buy_contracts = cd["buy_contracts"]
     sell_contracts = cd["sell_contracts"]
-    total_contracts = buy_contracts + sell_contracts
 
     buy_sell_ratio = (total_buy_volume / total_sell_volume) if total_sell_volume > 0 else float('inf')
 
@@ -276,7 +301,6 @@ ws_thread.start()
 # ----------------------------
 # Flask API Endpoints
 # ----------------------------
-    
 @app.route('/api/footprint/history/<tf>', methods=['GET'])
 def get_footprint_history(tf):
     if tf not in TIMEFRAMES:

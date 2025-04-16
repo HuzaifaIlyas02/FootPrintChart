@@ -11,7 +11,7 @@ export default function ChartContainer({ timeframe }) {
       style={{
         position: "relative",
         width: "100%",
-        height: "1000px",
+        height: "700px",
         marginTop: "20px",
         marginLeft: "20px",
       }}
