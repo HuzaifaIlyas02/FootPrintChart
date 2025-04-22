@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Live Binance Footprint</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    #chart { width: 100vw; height: 100vh; }
+  </style>
+</head>
+<body>
+
+<div id="chart"></div>
+
+<script>
+  const TIMEFRAME = '1m';
+  const API_URL  = `http://localhost:5000/api/footprint/history/${TIMEFRAME}`;
+  const POLL_MS  = 5000;  // 2 seconds
+
+  let initialized = false;
+
+  // 1) Fetch and normalize
+  async function fetchData() {
+    const res  = await fetch(API_URL);
+    const data = await res.json();
+
+    return data.map(d => ({
+      Date:        new Date(+d.bucket * 1000),
+      open:        +d.open,
+      high:        +d.high,
+      low:         +d.low,
+      close:       +d.close,
+      buy_vol:     +d.buy_volume,
+      sell_vol:    +d.sell_volume,
+      buy_trades:  +d.buy_contracts,   // use buy_contracts as trades count
+      sell_trades: +d.sell_contracts,  // use sell_contracts as trades count
+    }));
+  }
+
+  // 2) Build traces
+  function buildTraces(arr) {
+    return [
+      {
+        type: 'candlestick',
+        x: arr.map(d => d.Date),
+        open:  arr.map(d => d.open),
+        high:  arr.map(d => d.high),
+        low:   arr.map(d => d.low),
+        close: arr.map(d => d.close),
+        name: 'OHLC'
+      },
+      {
+        mode: 'text',
+        x: arr.map(d => d.Date),
+        y: arr.map(d => d.high),
+        text: arr.map(d => 
+          `${d.buy_vol.toFixed(3)} × ${d.buy_trades}`),
+        textposition: 'middle right',
+        name: 'Buy Vol × Trades'
+      },
+      {
+        mode: 'text',
+        x: arr.map(d => d.Date),
+        y: arr.map(d => d.low),
+        text: arr.map(d => `${d.sell_vol.toFixed(3)} x ${d.sell_trades}`),
+        textposition: 'middle left',
+        name: 'Sell Vol x Trades'
+      }
+    ];
+  }
+
+  // 3) Draw or update
+  async function updateChart() {
+    try {
+      const arr    = await fetchData();
+      const traces = buildTraces(arr);
+      const layout = {
+        title: `Live Binance Footprint – ${TIMEFRAME}`,
+        xaxis: { title: 'Time', rangeslider: { visible: false } },
+        yaxis: { title: 'Price' },
+        margin: { l: 40, r: 40, t: 40, b: 40 }
+      };
+
+      if (!initialized) {
+        Plotly.newPlot('chart', traces, layout, { responsive: true });
+        initialized = true;
+      } else {
+        Plotly.react('chart', traces, layout);
+      }
+    } catch (e) {
+      console.error('Chart update failed:', e);
+    }
+  }
+
+  // 4) Kick off polling
+  updateChart();
+  setInterval(updateChart, POLL_MS);
+</script>
+
+</body>
+</html>

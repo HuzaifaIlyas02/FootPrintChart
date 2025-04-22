@@ -5,7 +5,7 @@ import json
 import time
 import threading
 from collections import defaultdict
-from flask import Flask, jsonify, send_file
+from flask import Flask, jsonify, send_file, render_template
 import requests
 import websocket
 from flask_cors import CORS
@@ -317,4 +317,5 @@ def get_footprint_history(tf):
 # Run Flask App
 # ----------------------------
 if __name__ == '__main__':
-    app.run(port=5000)
+    app.run(host='0.0.0.0', port=5000, debug=False)
+    # app.run(port=5000)
